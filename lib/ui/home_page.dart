@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
+import '../official/official.dart';
+import '../official/official_ui.dart';
 import '../data/entry_url.dart' as entry;
 import '../data/probe.dart';
 import '../models/connection.dart';
@@ -26,6 +28,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final Map<String, Map<LinePolicy, ProbeResult>> _probes = {};
   bool _probing = false;
 
+  /// 服务器公告（发布版才有；源码版恒为空）
+  List<Announcement> _announcements = const [];
+  Announcement? _unread;
+
   AppController get _app => widget.controller;
 
   @override
@@ -33,7 +39,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _app.store.addListener(_onStoreChanged);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _probeAll());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _probeAll();
+      _loadOfficial();
+    });
   }
 
   @override
@@ -50,6 +59,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   void _onStoreChanged() {
     if (mounted) setState(() {});
+  }
+
+  /// 发布版：拉公告 + 启动时静默查一次更新（源码版直接返回，不发任何请求）
+  Future<void> _loadOfficial() async {
+    if (!kOfficialBuild) return;
+    final items = await loadAnnouncements();
+    final unread = await unreadAnnouncement(items);
+    if (!mounted) return;
+    setState(() {
+      _announcements = items;
+      _unread = unread;
+    });
+    // 启动后稍等一下再查更新，别和连电脑抢带宽
+    Future<void>.delayed(const Duration(seconds: 3), () {
+      if (mounted) checkForUpdate(context);
+    });
   }
 
   Future<void> _probeAll() async {
@@ -177,6 +202,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       appBar: AppBar(
         title: const Text('DSH Pocket'),
         actions: [
+          if (_announcements.isNotEmpty)
+            IconButton(
+              tooltip: '公告',
+              onPressed: _showAnnouncementList,
+              icon: Badge(
+                isLabelVisible: _unread != null,
+                child: const Icon(Icons.campaign_outlined),
+              ),
+            ),
           IconButton(
             tooltip: '刷新状态',
             onPressed: _probing ? null : _probeAll,
@@ -211,24 +245,66 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         top: false,
         child: connections.isEmpty
             ? _EmptyState(onAdd: _openAdd)
-            : RefreshIndicator(
-                onRefresh: _probeAll,
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-                  itemCount: connections.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final connection = connections[index];
-                    return _ConnectionCard(
-                      connection: connection,
-                      dotFor: (kind) => _dotFor(connection, kind),
-                      onTap: () => _connect(connection),
-                      onEdit: () => _openAddPage(null, editing: connection),
-                      onDelete: () => _confirmDelete(connection),
-                    );
-                  },
-                ),
+            : Column(
+                children: [
+                  if (_unread != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: AnnouncementBanner(announcement: _unread!),
+                    ),
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: _probeAll,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                        itemCount: connections.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final connection = connections[index];
+                          return _ConnectionCard(
+                            connection: connection,
+                            dotFor: (kind) => _dotFor(connection, kind),
+                            onTap: () => _connect(connection),
+                            onEdit: () => _openAddPage(null, editing: connection),
+                            onDelete: () => _confirmDelete(connection),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
               ),
+      ),
+    );
+  }
+
+  Future<void> _showAnnouncementList() async {
+    if (_announcements.isEmpty) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.only(bottom: 16),
+          children: [
+            for (final item in _announcements)
+              ListTile(
+                leading: const Icon(Icons.campaign_outlined),
+                title: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(
+                  item.content.replaceAll('\n', ' '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  showAnnouncementDialog(context, item);
+                },
+              ),
+          ],
+        ),
       ),
     );
   }

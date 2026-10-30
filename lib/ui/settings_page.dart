@@ -4,6 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../app_controller.dart';
 import '../app_info.dart';
 import '../models/connection.dart';
+import '../official/official.dart';
+import '../official/official_ui.dart';
 
 /// 设置：主题、默认布局、出处、清空数据。
 class SettingsPage extends StatefulWidget {
@@ -31,7 +33,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
-      body: ListView(
+      body: SafeArea(
+        top: false,
+        child: ListView(
         children: [
           _header(context, '外观'),
           RadioGroup<ThemeMode>(
@@ -100,6 +104,21 @@ class _SettingsPageState extends State<SettingsPage> {
             trailing: const Icon(Icons.open_in_new, size: 16),
             onTap: () => _open(kRepoUrl),
           ),
+          if (kOfficialBuild) ...[
+            _header(context, '发布版'),
+            ListTile(
+              leading: const Icon(Icons.system_update_alt),
+              title: const Text('检查更新'),
+              subtitle: const Text('从更新服务器拉最新版本'),
+              onTap: () => checkForUpdate(context, silent: true),
+            ),
+            ListTile(
+              leading: const Icon(Icons.favorite_border),
+              title: const Text('请作者喝杯奶茶'),
+              subtitle: const Text('微信扫码赞赏，金额随意'),
+              onTap: () => showRewardSheet(context),
+            ),
+          ],
           _header(context, '安全提示'),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -120,6 +139,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 24),
         ],
+        ),
       ),
     );
   }

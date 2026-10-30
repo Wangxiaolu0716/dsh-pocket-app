@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,6 +8,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../app_controller.dart';
 import '../app_info.dart';
 import '../data/entry_url.dart';
+import '../data/pocket_status.dart';
 import '../data/probe.dart';
 import '../models/connection.dart';
 import 'add_connection_page.dart';
@@ -52,6 +55,7 @@ class _ConnectionPageState extends State<ConnectionPage>
   bool _inspecting = false;
   bool _pinDialogOpen = false;
   bool _authRetried = false;
+  bool _statusSynced = false;
   int _pinAttempts = 0;
   Map<LinePolicy, ProbeResult> _probeResults = const {};
 
@@ -63,6 +67,11 @@ class _ConnectionPageState extends State<ConnectionPage>
     _conn = widget.connection;
     WidgetsBinding.instance.addObserver(this);
     _web = WebViewController()
+      // 页面里问完 dsh-pocket 的状态后会 postMessage 回来（拿当前公网/局域网地址）
+      ..addJavaScriptChannel(
+        'DshPocketBridge',
+        onMessageReceived: (message) => _onBridgeMessage(message.message),
+      )
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF0B0D12))
       ..setNavigationDelegate(
@@ -171,6 +180,7 @@ class _ConnectionPageState extends State<ConnectionPage>
     }
     _progress = 0;
     _authRetried = false;
+    _statusSynced = false;
     final uri = buildEntryUri(_base, pin: _pin, layout: _conn.layout);
     setState(() {
       _phase = _Phase.live;
@@ -245,6 +255,7 @@ class _ConnectionPageState extends State<ConnectionPage>
             _error = null;
             _detail = null;
           });
+          _syncStatusFromPage();
         default:
           setState(() => _phase = _Phase.live);
       }
@@ -253,6 +264,47 @@ class _ConnectionPageState extends State<ConnectionPage>
     } finally {
       _inspecting = false;
     }
+  }
+
+  /// 让页面替我们问一次 dsh-pocket 的状态，把最新的公网/局域网地址记下来。
+  ///
+  /// 为什么要绕这么一圈：那个 RPC 是 loopback-only 且要 dsh web 自己的 cookie，
+  /// 只有页面上下文里才有；原生 HTTP 客户端问了也是 401。
+  /// 拿到之后：
+  ///   - 电脑重启 dsh web → 快速隧道换了新地址 → 下次连公网自动用新的
+  ///   - 电脑换了 IP / 换了 WiFi → 局域网地址也能自己改过来
+  Future<void> _syncStatusFromPage() async {
+    if (_statusSynced) return;
+    _statusSynced = true;
+    try {
+      await _web.runJavaScript(pocketStatusJs);
+    } catch (_) {
+      // 页面不让跑 JS 就算了，纯锦上添花
+    }
+  }
+
+  Future<void> _onBridgeMessage(String raw) async {
+    final status = PocketStatus.tryParse(raw);
+    if (status == null || status.isEmpty || !mounted) return;
+
+    var conn = _conn;
+    final changes = <String>[];
+    if (status.tunnelUrl != null && status.tunnelUrl != conn.publicUrl) {
+      conn = conn.copyWith(publicUrl: status.tunnelUrl);
+      changes.add('公网');
+    }
+    if (status.lanUrl != null && status.lanUrl != conn.lanUrl) {
+      conn = conn.copyWith(lanUrl: status.lanUrl);
+      changes.add('局域网');
+    }
+    if (changes.isEmpty) return;
+
+    _conn = conn;
+    await _app.store.upsert(conn);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已同步电脑上的新${changes.join(' / ')}地址')),
+    );
   }
 
   static String _normalizeJs(Object? raw) {
@@ -583,7 +635,13 @@ class _ConnectionPageState extends State<ConnectionPage>
             ),
           ],
         ),
-        body: Stack(
+        body: Padding(
+          // 安卓：edge-to-edge 之后内容会铺到手势条底下，补一层等效留白；
+          // iOS：dsh-pocket 的移动端 CSS 自己处理 env(safe-area-inset-bottom)，别重复加
+          padding: EdgeInsets.only(
+            bottom: Platform.isAndroid ? MediaQuery.viewPaddingOf(context).bottom : 0,
+          ),
+          child: Stack(
           children: [
             // WebView 一直在，别因为切状态被重建（重建 = 丢页面状态）
             Positioned.fill(child: WebViewWidget(controller: _web)),
@@ -601,6 +659,7 @@ class _ConnectionPageState extends State<ConnectionPage>
                 ),
               ),
           ],
+          ),
         ),
       ),
     );

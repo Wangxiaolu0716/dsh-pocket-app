@@ -13,6 +13,9 @@ build-apk.log
 build/release-logs/
 build/ios-ipa/
 
+# 发布版专属资源（收款码只进 README，不进 App 资源）
+assets/reward_qr.png
+
 # 本地敏感配置（Codemagic token 等）
 .env
 
@@ -28,3 +31,9 @@ Thumbs.db
 # 某些工具没展开环境变量时建出来的怪目录
 %SystemDrive%/
 %SystemRoot%/
+
+# JVM / Gradle 崩溃日志
+hs_err_pid*.log
+replay_pid*.log
+android/hs_err_pid*.log
+android/replay_pid*.log

@@ -1,7 +1,7 @@
 name: dsh_pocket
 description: "DSH Pocket 手机端：扫码连上你电脑上的 DeepSeek Harness。"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ^3.13.4
@@ -19,6 +19,10 @@ dependencies:
   flutter_secure_storage: ^11.2.0
   http: ^1.6.0
   url_launcher: ^6.3.3
+  package_info_plus: ^10.2.2
+  path_provider: ^2.1.6
+  open_filex: ^5.0.0
+  crypto: ^3.0.8
 
 dev_dependencies:
   flutter_test:
@@ -27,3 +31,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    # 目录形式：官方发布版打包时才把收款码放进来（tools/publish_server.ps1），
+    # 源码仓库里 assets/reward_qr.png 是 gitignore 的，绝不进源码版 APK。
+    - assets/

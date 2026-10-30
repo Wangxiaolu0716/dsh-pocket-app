@@ -124,7 +124,9 @@ class _AddConnectionPageState extends State<AddConnectionPage> {
           ),
         ],
       ),
-      body: Form(
+      body: SafeArea(
+        top: false,
+        child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
@@ -226,6 +228,7 @@ class _AddConnectionPageState extends State<AddConnectionPage> {
                   ?.copyWith(color: theme.colorScheme.outline),
             ),
           ],
+        ),
         ),
       ),
     );
