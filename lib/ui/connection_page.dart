@@ -51,6 +51,7 @@ class _ConnectionPageState extends State<ConnectionPage>
   bool _webviewPrepared = false;
   bool _inspecting = false;
   bool _pinDialogOpen = false;
+  bool _authRetried = false;
   int _pinAttempts = 0;
   Map<LinePolicy, ProbeResult> _probeResults = const {};
 
@@ -169,6 +170,7 @@ class _ConnectionPageState extends State<ConnectionPage>
       _webviewPrepared = true;
     }
     _progress = 0;
+    _authRetried = false;
     final uri = buildEntryUri(_base, pin: _pin, layout: _conn.layout);
     setState(() {
       _phase = _Phase.live;
@@ -190,6 +192,7 @@ class _ConnectionPageState extends State<ConnectionPage>
     if (text.indexOf('Browser did not keep the session cookie') >= 0) return 'blocked';
     if (text.indexOf('无法连接上游') >= 0) return 'upstream';
     if (text.indexOf('dsh web 没有运行') >= 0) return 'upstream';
+    if (text.indexOf('dsh web authentication required') >= 0) return 'dshauth';
     return 'app';
   } catch (e) {
     return 'unknown';
@@ -215,6 +218,20 @@ class _ConnectionPageState extends State<ConnectionPage>
             _detail = '这是 dsh-pocket 已知的握手问题（http:// + IP 的老 Safari 场景）。'
                 '点「重新加载」再试一次，或者改用公网 HTTPS 地址进入。';
           });
+        case 'dshauth':
+          // dsh web 给浏览器会话的启动 token 没接上（多见于电脑那边刚重启 dsh web）。
+          // 代理每次 GET / 都会补一次，所以先默默重载一遍。
+          if (!_authRetried) {
+            _authRetried = true;
+            await _web.reload();
+          } else {
+            setState(() {
+              _phase = _Phase.failed;
+              _error = 'dsh web 的浏览器会话没接上';
+              _detail = '电脑上的 dsh web 刚重启过，或者它的启动链接变了。'
+                  '点「重新加载」再试一次；还不行就在电脑上重新打开一次 dsh web 给的地址。';
+            });
+          }
         case 'upstream':
           setState(() {
             _phase = _Phase.failed;
