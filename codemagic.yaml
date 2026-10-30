@@ -1,0 +1,46 @@
+# Codemagic 构建配置：Windows 上编不了 iOS，交给云端 macOS 出包。
+#
+# 现在出的是**未签名 IPA**（没有 Apple 开发者账号就拿不到分发证书）：
+#   1. 用来验证 iOS 侧代码能编过
+#   2. 自己用 Sideloadly / AltStore 重签后装到 iPhone 上预览
+# 以后配好 App Store Connect 集成，换成带签名的流程就能直接出 TestFlight 包。
+
+workflows:
+  ios-unsigned:
+    name: iOS 未签名 IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: 拉取依赖
+        script: flutter pub get
+      - name: 静态检查与测试
+        script: |
+          flutter analyze
+          flutter test
+      - name: 构建 iOS（不签名）
+        script: flutter build ios --release --no-codesign
+      - name: 打包成 IPA
+        script: |
+          set -e
+          cd build/ios/iphoneos
+          version=$(sed -n 's/^version: \([0-9][0-9.]*\)+.*/\1/p' ../../../pubspec.yaml)
+          rm -rf Payload
+          mkdir Payload
+          cp -R Runner.app Payload/
+          zip -qry "dsh-pocket-${version}-unsigned.ipa" Payload
+          rm -rf Payload
+          ls -lh *.ipa
+    artifacts:
+      # 只留 IPA；Runner.app 传上去会被自动打成 zip，下载下来是一堆目录，容易以为「没出包」
+      - build/ios/iphoneos/*.ipa
+      - /tmp/xcodebuild_logs/*.log

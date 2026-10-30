@@ -1,0 +1,26 @@
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+*.iml
+.idea/
+local.properties
+
+# 构建/发版日志
+build-apk.log
+build/release-logs/
+build/ios-ipa/
+
+# 本地敏感配置（Codemagic token 等）
+.env
+
+# Kotlin / 构建残留
+.kotlin/
+android/.gradle/
+android/local.properties
+
+# 系统
+.DS_Store
+Thumbs.db
