@@ -47,6 +47,13 @@ dsh-pocket 是一个 DSH 插件：它在电脑上起一个反向代理（默认 
 - 🌙 **深色 / 浅色 / 跟随系统**，跟 DSH 本体一个观感。
 - 🔗 **复制入口链接**（带密码，方便临时在别人的浏览器里看，注意别外传）。
 
+## 下载
+
+[Releases](https://github.com/Wangxiaolu0716/dsh-pocket-app/releases) 里两个都有：
+
+- `dsh-pocket-1.0.0.apk` —— Android，直接装（debug 证书签名）
+- `dsh-pocket-1.0.0-unsigned.ipa` —— iOS，**未签名**，用 Sideloadly / AltStore 重签后装
+
 ## 安装
 
 ### Android
@@ -66,6 +73,10 @@ Windows 上编不了 iOS，走 Codemagic（和课表 App 同一套办法）：
    `codemagic.yaml`（workflow：`ios-unsigned`）
 2. push 一下就开跑，产物是 **未签名 IPA**（`build/ios/iphoneos/*.ipa`）
 3. 装到手机：Sideloadly / AltStore 重签后安装
+
+> 首次构建已跑通（Codemagic build #1–#3，3~4 分钟出包，min iOS 15.0）。
+> 注意：用 API 新建的 Codemagic App 没有自动装 GitHub webhook，push 不会自己触发，
+> 用 `tools\trigger_ios_build.ps1` 触发一次，或者去 Codemagic 网页里点 Start new build。
 
 ```powershell
 # 触发一次构建 + 等它跑完 + 把 IPA 拉到 build\ios-ipa\（token 在 .env 的 CODEMAGIC_TOKEN）
