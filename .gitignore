@@ -24,3 +24,7 @@ android/local.properties
 # 系统
 .DS_Store
 Thumbs.db
+
+# 某些工具没展开环境变量时建出来的怪目录
+%SystemDrive%/
+%SystemRoot%/

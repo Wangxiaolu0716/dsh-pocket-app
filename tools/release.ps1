@@ -27,6 +27,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# 控制台按 UTF-8 输出，否则中文在 GBK 码页里会变成乱码
+try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
+
 function Write-Step($text) { Write-Host "`n>>> $text" -ForegroundColor Cyan }
 function Write-Ok($text) { Write-Host "    OK   $text" -ForegroundColor Green }
 function Write-Fail($text) { Write-Host "    !!   $text" -ForegroundColor Red }
@@ -54,6 +57,16 @@ function Show-Tail {
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $pubspec = Join-Path $projectRoot 'pubspec.yaml'
+
+# 注意：PowerShell 里 `flutter` 会解析成 C:\flutter\bin\flutter（bash 脚本），
+# 在 Windows 上跑不起来且不报错、LASTEXITCODE 还是空的。必须显式用 flutter.bat。
+$flutter = (Get-Command flutter.bat -ErrorAction SilentlyContinue).Source
+if (-not $flutter) {
+    foreach ($candidate in @('C:\flutter\bin\flutter.bat', "$env:LOCALAPPDATA\flutter\bin\flutter.bat")) {
+        if (Test-Path $candidate) { $flutter = $candidate; break }
+    }
+}
+if (-not $flutter) { throw '找不到 flutter.bat，请确认 Flutter SDK 已安装并加入 PATH' }
 $apk = Join-Path $projectRoot 'build\app\outputs\flutter-apk\app-release.apk'
 
 # ---------------------------------------------------------------- 构建环境
@@ -116,7 +129,7 @@ if (-not $Yes) {
 if (-not $SkipTest) {
     Write-Step 'flutter analyze + test'
     $logAnalyze = Join-Path $logDir "analyze-$stamp.log"
-    if ((Invoke-Logged 'flutter' @('analyze') $logAnalyze) -ne 0) {
+    if ((Invoke-Logged $flutter @('analyze') $logAnalyze) -ne 0) {
         Write-Fail 'flutter analyze 没通过'
         Show-Tail $logAnalyze
         throw '静态检查失败'
@@ -124,7 +137,7 @@ if (-not $SkipTest) {
     Write-Ok 'analyze 零问题'
 
     $logTest = Join-Path $logDir "test-$stamp.log"
-    if ((Invoke-Logged 'flutter' @('test') $logTest) -ne 0) {
+    if ((Invoke-Logged $flutter @('test') $logTest) -ne 0) {
         Write-Fail 'flutter test 没通过'
         Show-Tail $logTest
         throw '测试失败'
@@ -135,7 +148,7 @@ if (-not $SkipTest) {
 # ---------------------------------------------------------------- 出包
 Write-Step '构建 APK'
 $logBuild = Join-Path $logDir "build-$stamp.log"
-if ((Invoke-Logged 'flutter' @('build', 'apk', '--release') $logBuild) -ne 0) {
+if ((Invoke-Logged $flutter @('build', 'apk', '--release') $logBuild) -ne 0) {
     Write-Fail 'flutter build apk 失败'
     Show-Tail $logBuild 40
     throw '构建失败（Kotlin 报 could not close incremental caches 的话，检查 gradle.properties 里 kotlin.incremental=false）'

@@ -62,14 +62,17 @@ flutter build apk --release
 
 Windows 上编不了 iOS，走 Codemagic（和课表 App 同一套办法）：
 
-1. 在 [Codemagic](https://codemagic.io) 里 Add application，选这个 GitHub 仓库，
-   配置用仓库里的 `codemagic.yaml`（workflow：`ios-unsigned`，push `main` 自动触发）
+1. Codemagic 上已经建好这个 App（appId `6ae4229f80353414f5a033d8`），配置用仓库里的
+   `codemagic.yaml`（workflow：`ios-unsigned`）
 2. push 一下就开跑，产物是 **未签名 IPA**（`build/ios/iphoneos/*.ipa`）
 3. 装到手机：Sideloadly / AltStore 重签后安装
 
 ```powershell
-# 等构建跑完并把 IPA 拉到本地（token 走环境变量 CODEMAGIC_TOKEN）
-.\tools\fetch_ios_ipa.ps1 -AppId <codemagic-app-id> -WaitMinutes 60
+# 触发一次构建 + 等它跑完 + 把 IPA 拉到 build\ios-ipa\（token 在 .env 的 CODEMAGIC_TOKEN）
+.\tools\trigger_ios_build.ps1 -WaitMinutes 60
+
+# 已经有构建在跑，只想取包
+.\tools\fetch_ios_ipa.ps1 -WaitMinutes 60
 ```
 
 ## 开发

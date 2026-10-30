@@ -13,7 +13,8 @@
     .\tools\fetch_ios_ipa.ps1 -AppId 1234abcd -WaitMinutes 60
 #>
 param(
-    [Parameter(Mandatory)][string]$AppId,
+    # 默认就是这个仓库在 Codemagic 上的 app id；换仓库/换账号时传新的
+    [string]$AppId = '6ae4229f80353414f5a033d8',
     [string]$BuildId = '',
     [string]$OutDir = '',
     [string]$Token = '',
