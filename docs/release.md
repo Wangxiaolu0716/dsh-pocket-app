@@ -90,6 +90,6 @@ push 不会自动触发（用 API 建的 App 没装 webhook），要么用脚本
 - Gradle 守护进程 OOM：`android/gradle.properties` 里堆别超过 2G、`org.gradle.workers.max=2`
 - Kotlin 增量缓存报 `Could not close incremental caches`：`kotlin.incremental=false`
 - PowerShell 里 `flutter` 会解析成 `C:\flutter\bin\flutter`（bash 脚本，跑不动还不报错）：脚本里一律用 `flutter.bat`
-- 资产换了以后构建报 `Cannot copy file ... already exists`：删掉 `build/app/intermediates/flutter/release/flutter_assets` 再编
+- 资产换了以后构建报 `Cannot copy file ... already exists`：删掉 `build/app/intermediates/flutter/release/flutter_assets` 再编（两个发版脚本现在会自己先清这一层）
 - 传服务器走 `pscp`，密码从 `.env` 的 `NBCC_SSH_PASSWORD` 读，写进临时文件用 `-pwfile` 传（不出现在命令行里）
 - git push 需要走代理：`git -c http.proxy=http://127.0.0.1:7890 push origin main`

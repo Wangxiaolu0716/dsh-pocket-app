@@ -169,6 +169,8 @@ try {
 
     # ------------------------------------------------------------ 构建
     Write-Step "构建发布版 APK（$TargetPlatform）"
+    $staleAssets = Join-Path $projectRoot 'build\app\intermediates\flutter\release\flutter_assets'
+    if (Test-Path $staleAssets) { Remove-Item $staleAssets -Recurse -Force -ErrorAction SilentlyContinue }
     Push-Location $projectRoot
     try {
         Invoke-Native -What 'flutter build apk' -Exe $flutter -Arguments @(

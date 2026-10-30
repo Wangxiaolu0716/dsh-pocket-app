@@ -152,6 +152,9 @@ if (-not $SkipTest) {
 
 # ---------------------------------------------------------------- 出包
 Write-Step '构建 APK'
+# 上一轮若用另一套 asset 构建过（官方版带收款码），中间产物会残留 → 先清掉
+$staleAssets = Join-Path $projectRoot 'build\app\intermediates\flutter\release\flutter_assets'
+if (Test-Path $staleAssets) { Remove-Item $staleAssets -Recurse -Force -ErrorAction SilentlyContinue }
 $logBuild = Join-Path $logDir "build-$stamp.log"
 if ((Invoke-Logged $flutter @('build', 'apk', '--release') $logBuild) -ne 0) {
     Write-Fail 'flutter build apk 失败'
