@@ -90,3 +90,36 @@
    `form action=...method=...`。App 侧用的是 CSS 属性选择器
    `document.querySelector('form[action="/pocket-login"]')`，与顺序无关；
    兜底再扫一遍 body 里的 `pocket-login` 字样。
+
+## 7. 顺着代理去问 dsh-pocket 自己的状态（地址自动跟进）
+
+dsh-pocket 的设置页通过一条 **loopback-only RPC** 跟主机通信：
+
+- 通道：`POST /dsh-pocket/<endpoint>`，endpoint 见 `client/api.js` 的 `POCKET_ENDPOINTS`
+  （`pocket.status` / `tunnel.start` / `pocket.restart` …）
+- 信封：`{"rpcId":"…","method":"pocket.status","payload":{}}`
+- 返回：`{"type":"server-response","rpcId":"…","result":{"ok":true,"data":{…}}}`
+- 放行的前提是「Host 是 loopback」+ 不是 cross-site（`lib/web-rpc.js` 的 `isTrustedLoopbackRequest`）
+
+**关键点：手机也能走这条路。** 代理会把 `Host`/`Origin`/`Referer` 全部改写成
+`127.0.0.1:3080` 再转给上游，所以从手机发来的请求到了 dsh web 那儿，看起来就是本机请求；
+再加上代理那层访问密码，等于「只有拿着密码的人能问」。
+
+那么 App 拿到 `data` 里的这些就够用了：
+
+| 字段 | 用途 |
+| --- | --- |
+| `tunnelUrl` | 当前公网地址（快速隧道每次重开都变）→ 自动写回本地配置 |
+| `lanUrl` | 当前局域网地址（电脑换网/换 IP）→ 同上 |
+| `proxyPort` | 代理端口，换过端口也能自己修 |
+| `tunnelRunning` | 公网此刻开着没有，用来决定要不要提示「隧道没开」 |
+
+**实现上的坑**：这个 RPC 认 dsh web 自己的会话 cookie，而 App 的原生 HTTP 客户端没有那套
+cookie。所以查询**必须在页面上下文里发**（`lib/data/pocket_status.dart` 的 `pocketStatusJs`），
+再用 `addJavaScriptChannel` 把结果 `postMessage` 回 Dart。
+
+**能自动跟到什么程度：**
+
+- 在家（局域网连得上）：一定能同步到最新公网地址，所以「电脑重启 dsh web → 出门」这条链路是通的
+- 人在外面、公网地址已经变了：这时候没有任何本地信息可查，唯一办法是**命名隧道固定域名**
+  （dsh-pocket 设置页里填 Cloudflare Tunnel Token + 自己的域名），或者让电脑主动往服务器上报地址
