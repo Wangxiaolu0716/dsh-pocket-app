@@ -67,3 +67,26 @@
   这正好当连通性探测用：拿到任何 HTTP 响应就算「这条线路活着」。
 - `lib/data/probe.dart`：`GET /` + 4 秒超时，同时从 body 里认出「要密码」和「上游没跑」两种状态。
 - 首页两条线路并行探活；连接页两条线路并行探活后按偏好挑第一条通的。
+
+## 6. 实测：四种「页面」分别长什么样
+
+用本机 dsh-pocket 源码起了个代理（上游指向本机 dsh web，密码 `12345678`），
+从局域网 IP 访问，把 App 要认的四种状态都打了一遍：
+
+| 请求 | 状态码 | 页面 | App 的判断 |
+| --- | --- | --- | --- |
+| `GET /`（无 cookie） | 200 | 登录页，`<form method="post" action="/pocket-login">` | `login` → 弹密码框 |
+| `GET /?token=12345678` | 200/401 | 种下 `dsh_pocket_token` cookie 后放行 | 看上游：进 DSH 或者 `dshauth` |
+| `GET /?token=00000000` | 200 | 还是登录页 | `login` → 「密码不对」 |
+| 上游 dsh web 没跑 | 502 | 纯文本 `dsh-pocket: 无法连接上游 dsh web（…）` | `upstream` → 「dsh web 没有在运行」 |
+| dsh web 的启动 token 没接上 | 401 | 纯文本 `dsh web authentication required; reopen the URL printed by dsh web.` | `dshauth` → 先自动重载一次（代理每次 `GET /` 都会补 token） |
+
+两个**反直觉但要紧**的点：
+
+1. `?token=` 带对时，代理会在**同一个响应**里种 cookie 并把请求转发给上游，所以
+   App 不需要「先 POST 登录、再跳转」这种两步走；一条 `loadRequest` 就够了，
+   也不会出现「主页 200、子资源 401」的白屏（那是 issue #35 修掉的）。
+2. 登录页的 `<form>` 是 `method="post" action="/pocket-login"`——属性顺序别写死成
+   `form action=...method=...`。App 侧用的是 CSS 属性选择器
+   `document.querySelector('form[action="/pocket-login"]')`，与顺序无关；
+   兜底再扫一遍 body 里的 `pocket-login` 字样。
