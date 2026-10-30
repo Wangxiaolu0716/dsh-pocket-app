@@ -56,6 +56,10 @@ class _ConnectionPageState extends State<ConnectionPage>
   bool _pinDialogOpen = false;
   bool _authRetried = false;
   bool _statusSynced = false;
+
+  /// 从页面里采到的底色。DSH 的底色和 App 的深色不是一个色号，
+  /// 顶栏和底部留白如果还用 App 的色，屏幕上就会露出一条色带。
+  Color? _pageBg;
   int _pinAttempts = 0;
   Map<LinePolicy, ProbeResult> _probeResults = const {};
 
@@ -256,6 +260,7 @@ class _ConnectionPageState extends State<ConnectionPage>
             _detail = null;
           });
           _syncStatusFromPage();
+          _samplePageBackground();
         default:
           setState(() => _phase = _Phase.live);
       }
@@ -305,6 +310,62 @@ class _ConnectionPageState extends State<ConnectionPage>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('已同步电脑上的新${changes.join(' / ')}地址')),
     );
+  }
+
+  /// 取页面自己的底色：body → html → DSH 的 --dsw-alias-bg-base，取第一个不透明的。
+  static const String _pageBgJs = r'''
+(function () {
+  try {
+    function opaque(c) {
+      return c && c !== 'transparent' && c.indexOf('rgba(0, 0, 0, 0)') !== 0;
+    }
+    if (document.body) {
+      var b = getComputedStyle(document.body).backgroundColor;
+      if (opaque(b)) return b;
+    }
+    var h = getComputedStyle(document.documentElement);
+    if (opaque(h.backgroundColor)) return h.backgroundColor;
+    var v = (h.getPropertyValue('--dsw-alias-bg-base') || '').trim();
+    return v || '';
+  } catch (e) {
+    return '';
+  }
+})()
+''';
+
+  /// 解析 rgb()/rgba()/#rrggbb，透明或认不出返回 null。
+  static Color? parseCssColor(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return null;
+    final rgb = RegExp(r'rgba?\(\s*([0-9]+)\s*,\s*([0-9]+)\s*,\s*([0-9]+)(?:\s*,\s*([0-9.]+))?\s*\)')
+        .firstMatch(text);
+    if (rgb != null) {
+      final alpha = rgb.group(4) == null ? 1.0 : (double.tryParse(rgb.group(4)!) ?? 1.0);
+      if (alpha < 0.05) return null;
+      return Color.fromARGB(
+        255,
+        int.parse(rgb.group(1)!),
+        int.parse(rgb.group(2)!),
+        int.parse(rgb.group(3)!),
+      );
+    }
+    final hex = RegExp(r'^#[0-9a-fA-F]{6}$').firstMatch(text);
+    if (hex != null) return Color(0xFF000000 | int.parse(hex.group(1)!, radix: 16));
+    return null;
+  }
+
+  Future<void> _samplePageBackground() async {
+    try {
+      final raw = _normalizeJs(await _web.runJavaScriptReturningResult(_pageBgJs));
+      final color = parseCssColor(raw);
+      if (color == null || !mounted) return;
+      if (_pageBg?.toARGB32() == color.toARGB32()) return;
+      setState(() => _pageBg = color);
+      // WebView 自己的底色也一起换掉，滚动回弹时才不会闪一下别的颜色
+      await _web.setBackgroundColor(color);
+    } catch (_) {
+      // 采不到就用主题色，不影响使用
+    }
   }
 
   static String _normalizeJs(Object? raw) {
@@ -567,6 +628,11 @@ class _ConnectionPageState extends State<ConnectionPage>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // 顶栏和底部留白都跟着页面底色走，色号差一点就会在屏幕边上露一条横带
+    final chromeColor = _phase == _Phase.live
+        ? (_pageBg ?? theme.scaffoldBackgroundColor)
+        : theme.scaffoldBackgroundColor;
+    final chromeIsLight = chromeColor.computeLuminance() > 0.5;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
@@ -581,6 +647,18 @@ class _ConnectionPageState extends State<ConnectionPage>
       child: Scaffold(
         appBar: AppBar(
           titleSpacing: 0,
+          backgroundColor: chromeColor,
+          foregroundColor: chromeIsLight ? Colors.black87 : Colors.white,
+          systemOverlayStyle: SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: chromeIsLight ? Brightness.dark : Brightness.light,
+            statusBarBrightness: chromeIsLight ? Brightness.light : Brightness.dark,
+            systemStatusBarContrastEnforced: false,
+            systemNavigationBarColor: Colors.transparent,
+            systemNavigationBarDividerColor: Colors.transparent,
+            systemNavigationBarIconBrightness: chromeIsLight ? Brightness.dark : Brightness.light,
+            systemNavigationBarContrastEnforced: false,
+          ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
@@ -635,14 +713,17 @@ class _ConnectionPageState extends State<ConnectionPage>
             ),
           ],
         ),
-        body: Padding(
-          // 安卓：edge-to-edge 之后内容会铺到手势条底下，补一层等效留白；
-          // iOS：dsh-pocket 的移动端 CSS 自己处理 env(safe-area-inset-bottom)，别重复加
-          padding: EdgeInsets.only(
-            bottom: Platform.isAndroid ? MediaQuery.viewPaddingOf(context).bottom : 0,
-          ),
-          child: Stack(
-          children: [
+        body: ColoredBox(
+          // 底部留白那条也要是页面底色，否则手势条下面会露出一条颜色不一样的横带
+          color: chromeColor,
+          child: Padding(
+            // 安卓：edge-to-edge 之后内容铺到手势条底下，补一层等效留白；
+            // iOS：dsh-pocket 的移动端 CSS 自己处理 env(safe-area-inset-bottom)，别重复加
+            padding: EdgeInsets.only(
+              bottom: Platform.isAndroid ? MediaQuery.viewPaddingOf(context).bottom : 0,
+            ),
+            child: Stack(
+              children: [
             // WebView 一直在，别因为切状态被重建（重建 = 丢页面状态）
             Positioned.fill(child: WebViewWidget(controller: _web)),
             if (_phase == _Phase.connecting) _buildConnecting(theme),
@@ -658,7 +739,8 @@ class _ConnectionPageState extends State<ConnectionPage>
                   minHeight: 2,
                 ),
               ),
-          ],
+              ],
+            ),
           ),
         ),
       ),
