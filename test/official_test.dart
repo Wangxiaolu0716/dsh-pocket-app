@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('UpdateInfo', () {
     test('正常清单能解析', () {
-      final info = UpdateInfo.tryParse('''
+      final info = UpdateInfo.tryParse(r'''
 {
   "versionCode": 3,
   "versionName": "1.1.1",
