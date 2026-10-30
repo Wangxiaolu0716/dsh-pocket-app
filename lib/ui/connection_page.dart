@@ -368,6 +368,10 @@ class _ConnectionPageState extends State<ConnectionPage>
   NavigationDecision _onNavigationRequest(NavigationRequest request) {
     final uri = Uri.tryParse(request.url);
     if (uri == null) return NavigationDecision.navigate;
+    // about: / data: / blob: 是页面自己在折腾，交给 WebView
+    if (uri.scheme == 'about' || uri.scheme == 'data' || uri.scheme == 'blob') {
+      return NavigationDecision.navigate;
+    }
     if (uri.scheme != 'http' && uri.scheme != 'https') {
       // mailto: / tel: 之类交给系统
       launchUrl(uri, mode: LaunchMode.externalApplication);
