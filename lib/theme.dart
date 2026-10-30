@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// 和 DeepSeek Harness 界面同一套观感：近黑底色 + 蓝色主色。
 const Color dshSeed = Color(0xFF4D6BFE);
@@ -24,6 +25,18 @@ ThemeData buildTheme(Brightness brightness) {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: false,
+      // 默认的 AppBar 会把系统导航栏刷成不透明黑，底部就会多一条色带；
+      // 统一成透明，配合 edge-to-edge 界面才能真正铺满
+      systemOverlayStyle: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        systemStatusBarContrastEnforced: false,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarDividerColor: Colors.transparent,
+        systemNavigationBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+        systemNavigationBarContrastEnforced: false,
+      ),
       titleTextStyle: TextStyle(
         color: scheme.onSurface,
         fontSize: 17,
