@@ -75,11 +75,16 @@ dsh-pocket 是一个 DSH 插件：它在电脑上起一个反向代理（默认 
 ### Android
 
 ```powershell
-flutter build apk --release
-# 产物 build\app\outputs\flutter-apk\app-release.apk（debug 证书签名，可直接装）
+# 源码版（不带公告/更新/赞赏）
+flutter build apk --release          # → build\app\outputs\flutter-apk\app-release.apk
+
+# 发布版（带公告 / 检查更新 / 赞赏，会连更新服务器）
+flutter build apk --release --target-platform android-arm64 --dart-define=OFFICIAL=true
 ```
 
-或者用 `tools\release.ps1` 一键：改版本号 → analyze + test → 出包 → 发 GitHub Release。
+一键发版看 [docs/release.md](docs/release.md)：
+`tools\publish_server.ps1`（发布版：出包 → 传自己服务器 → GitHub Release）、
+`tools\trigger_ios_build.ps1`（iOS）。
 
 ### iOS
 

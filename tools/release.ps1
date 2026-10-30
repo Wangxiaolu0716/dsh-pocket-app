@@ -1,7 +1,11 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Android 一键发版：改版本号 → 静态检查 + 测试 → 出 APK → 发 GitHub Release。
+    源码版打包：改版本号 → 静态检查 + 测试 → 出 APK（可选发 GitHub Release）。
+
+.NOTES
+    「发布版」（带服务器公告 / 检查更新 / 赞赏）请用 tools\publish_server.ps1，
+    那个才是给用户装的包；这个脚本出的是源码版，功能一样但完全不连服务器。
 
 .DESCRIPTION
     和课表 App 那套 release.ps1 一个思路，但只保留这个项目用得上的部分：
@@ -15,13 +19,14 @@
 
 .EXAMPLE
     # 只出包，不发 GitHub
-    .\tools\release.ps1 -Version 1.0.1 -SkipGitHub
+    # 只出包不发 GitHub（默认就是这样）
+    .\tools\release.ps1 -Version 1.0.1
 #>
 param(
     [string]$Version = '',
     [string]$Notes = '',
     [switch]$SkipTest,
-    [switch]$SkipGitHub,
+    [switch]$GitHub,
     [switch]$Yes
 )
 
@@ -117,7 +122,7 @@ Write-Host "    版本      : $currentName ($currentCode)"
 Write-Host "    说明      : $Notes"
 Write-Host "    Java      : $env:JAVA_HOME"
 Write-Host "    Android SDK: $env:ANDROID_HOME"
-Write-Host "    发 GitHub : $(if ($SkipGitHub) { '跳过' } else { '是' })"
+Write-Host "    发 GitHub : $(if ($GitHub) { '是' } else { '跳过（发布版请用 publish_server.ps1）' })"
 Write-Host "    日志目录  : $logDir"
 
 if (-not $Yes) {
@@ -158,10 +163,10 @@ $size = [math]::Round((Get-Item $apk).Length / 1MB, 1)
 Write-Ok "APK $apk（$size MB）"
 
 # ---------------------------------------------------------------- 发 GitHub
-if (-not $SkipGitHub) {
+if ($GitHub) {
     Write-Step "发 GitHub Release v$currentName"
     $gh = (Get-Command gh -ErrorAction SilentlyContinue)
-    if (-not $gh) { throw '找不到 gh 命令（GitHub CLI），先装一个或加 -SkipGitHub' }
+    if (-not $gh) { throw '找不到 gh 命令（GitHub CLI），先装一个，或者干脆不加 -GitHub' }
     & gh release view "v$currentName" 2>&1 | Out-Null
     if ($LASTEXITCODE -eq 0) {
         $previous = $ErrorActionPreference
@@ -179,4 +184,4 @@ if (-not $SkipGitHub) {
 Write-Host ''
 Write-Host "发版完成：$currentName" -ForegroundColor Green
 Write-Host "  APK: $apk"
-if (-not $SkipGitHub) { Write-Host "  Release: https://github.com/Wangxiaolu0716/dsh-pocket-app/releases/tag/v$currentName" }
+if ($GitHub) { Write-Host "  Release: https://github.com/Wangxiaolu0716/dsh-pocket-app/releases/tag/v$currentName" }
